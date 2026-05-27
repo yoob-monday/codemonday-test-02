@@ -13,6 +13,7 @@ export type Book = {
   status: "available" | "unavailable";
   createdAt: string;
   updatedAt: string;
+  dataOrigin?: "api" | "mock";
 };
 
 export type Member = {
@@ -97,7 +98,12 @@ async function fetchFromApi<T>(path: string, fallback: T): Promise<T> {
 }
 
 export function getBooks() {
-  return fetchFromApi<Book[]>("/books", mockLibrary.books);
+  return fetchFromApi<Book[]>("/books", mockLibrary.books).then((books) =>
+    books.map((book) => ({
+      ...book,
+      dataOrigin: book.dataOrigin ?? "api"
+    }))
+  );
 }
 
 export async function getBookBySlug(slug: string) {
@@ -111,7 +117,10 @@ export async function getBookBySlug(slug: string) {
     throw new Error(`Book not found for slug ${slug}`);
   }
 
-  return book;
+  return {
+    ...book,
+    dataOrigin: book.dataOrigin ?? "api"
+  };
 }
 
 export function getMembers() {
@@ -279,7 +288,8 @@ function buildMockLibrary() {
       availableCopies: 5,
       status: "available",
       createdAt: addDays(now, -45).toISOString(),
-      updatedAt: addDays(now, -2).toISOString()
+      updatedAt: addDays(now, -2).toISOString(),
+      dataOrigin: "mock"
     },
     {
       id: "book-2",
@@ -296,7 +306,8 @@ function buildMockLibrary() {
       availableCopies: 3,
       status: "available",
       createdAt: addDays(now, -40).toISOString(),
-      updatedAt: addDays(now, -3).toISOString()
+      updatedAt: addDays(now, -3).toISOString(),
+      dataOrigin: "mock"
     },
     {
       id: "book-3",
@@ -313,7 +324,8 @@ function buildMockLibrary() {
       availableCopies: 2,
       status: "available",
       createdAt: addDays(now, -30).toISOString(),
-      updatedAt: addDays(now, -1).toISOString()
+      updatedAt: addDays(now, -1).toISOString(),
+      dataOrigin: "mock"
     },
     {
       id: "book-4",
@@ -330,7 +342,8 @@ function buildMockLibrary() {
       availableCopies: 5,
       status: "available",
       createdAt: addDays(now, -25).toISOString(),
-      updatedAt: now.toISOString()
+      updatedAt: now.toISOString(),
+      dataOrigin: "mock"
     }
   ];
 

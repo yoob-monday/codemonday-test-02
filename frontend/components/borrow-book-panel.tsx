@@ -66,8 +66,14 @@ export function BorrowBookPanel({ book }: BorrowBookPanelProps) {
   }
 
   const authToken = token;
+  const borrowUnavailable = book.dataOrigin === "mock";
 
   function handleBorrow() {
+    if (borrowUnavailable) {
+      setError("Borrow is unavailable because the page is using mock catalog data. Start the backend API and reload.");
+      return;
+    }
+
     setError(null);
     setSuccessLoan(null);
 
@@ -111,13 +117,24 @@ export function BorrowBookPanel({ book }: BorrowBookPanelProps) {
           <p className="muted-copy">
             Borrow this title to receive an immediate loan code and due date based on the book category.
           </p>
+          {borrowUnavailable ? (
+            <p className="auth-error">
+              This catalog entry is coming from fallback mock data, so borrowing is disabled until the backend API is reachable.
+            </p>
+          ) : null}
           <button
             type="button"
             className="button button-primary"
             onClick={handleBorrow}
-            disabled={isPending || book.availableCopies <= 0}
+            disabled={isPending || book.availableCopies <= 0 || borrowUnavailable}
           >
-            {isPending ? "Borrowing..." : book.availableCopies > 0 ? "Borrow This Book" : "Unavailable"}
+            {isPending
+              ? "Borrowing..."
+              : borrowUnavailable
+                ? "API Required"
+                : book.availableCopies > 0
+                  ? "Borrow This Book"
+                  : "Unavailable"}
           </button>
         </>
       )}

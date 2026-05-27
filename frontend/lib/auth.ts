@@ -41,13 +41,19 @@ export async function register(payload: RegisterPayload) {
 }
 
 async function post<T>(path: string, payload: unknown): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(payload)
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+  } catch {
+    throw new Error(`Backend API is unavailable at ${API_BASE_URL}.`);
+  }
 
   if (!response.ok) {
     const error = await safeJson(response);
@@ -85,14 +91,20 @@ export async function authorizedJsonRequest<T>(
   token: string,
   init?: RequestInit
 ) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...(init?.headers ?? {})
-    }
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        ...(init?.headers ?? {})
+      }
+    });
+  } catch {
+    throw new Error(`Backend API is unavailable at ${API_BASE_URL}.`);
+  }
 
   if (!response.ok) {
     const error = await safeJson(response);
@@ -108,11 +120,17 @@ export async function authorizedJsonRequest<T>(
 }
 
 export async function authorizedBlobRequest(path: string, token: string) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+  } catch {
+    throw new Error(`Backend API is unavailable at ${API_BASE_URL}.`);
+  }
 
   if (!response.ok) {
     const error = await safeJson(response);
