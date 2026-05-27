@@ -2,13 +2,13 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import PDFDocument from 'pdfkit';
-import { BookCategory } from '../books/entities/book.entity';
-import { PrismaService } from '../prisma/prisma.service';
-import { CreateLoanDto } from './dto/create-loan.dto';
-import { LoanStatus } from './entities/loan.entity';
+} from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import PDFDocument from "pdfkit";
+import { BookCategory } from "../books/entities/book.entity";
+import { PrismaService } from "../prisma/prisma.service";
+import { CreateLoanDto } from "./dto/create-loan.dto";
+import { LoanStatus } from "./entities/loan.entity";
 
 type LoanRecord = {
   id: string;
@@ -70,25 +70,25 @@ export class LoansService {
     const loans = (await this.prisma.loan.findMany({
       where: {
         ...(memberId ? { memberId } : {}),
-        ...(status === 'returned'
+        ...(status === "returned"
           ? { returnedAt: { not: null } }
-          : status === 'active' || status === 'overdue'
+          : status === "active" || status === "overdue"
             ? { returnedAt: null }
             : {}),
       },
       include: this.loanInclude,
       orderBy: {
-        loanDate: 'desc',
+        loanDate: "desc",
       },
     })) as LoanRecord[];
 
     const decorated = loans.map((loan) => this.decorateLoan(loan));
 
-    if (status === 'overdue') {
+    if (status === "overdue") {
       return decorated.filter((loan) => loan.status === LoanStatus.OVERDUE);
     }
 
-    if (status === 'active') {
+    if (status === "active") {
       return decorated.filter((loan) =>
         [LoanStatus.BORROWED, LoanStatus.OVERDUE].includes(loan.status),
       );
@@ -97,20 +97,20 @@ export class LoansService {
     return decorated;
   }
 
-  async findForMember(memberId: string, scope = 'all') {
+  async findForMember(memberId: string, scope = "all") {
     const loans = await this.findAll(memberId);
 
-    if (scope === 'active') {
+    if (scope === "active") {
       return loans.filter((loan) =>
         [LoanStatus.BORROWED, LoanStatus.OVERDUE].includes(loan.status),
       );
     }
 
-    if (scope === 'history') {
+    if (scope === "history") {
       return loans.filter((loan) => loan.returnedAt !== null);
     }
 
-    if (scope === 'overdue') {
+    if (scope === "overdue") {
       return loans.filter((loan) => loan.status === LoanStatus.OVERDUE);
     }
 
@@ -132,18 +132,20 @@ export class LoansService {
 
   async create(memberId: string, createLoanDto: CreateLoanDto) {
     const loanDate = new Date();
-
+    
     const loan = (await this.prisma.$transaction(async (tx) => {
       const member = await tx.member.findUnique({
         where: { id: memberId },
       });
 
       if (!member) {
-        throw new NotFoundException(`Member with id "${memberId}" was not found.`);
+        throw new NotFoundException(
+          `Member with id "${memberId}" was not found.`,
+        );
       }
 
-      if (member.status !== 'active') {
-        throw new BadRequestException('Only active members can borrow books.');
+      if (member.status !== "active") {
+        throw new BadRequestException("Only active members can borrow books.");
       }
 
       const activeLoans = await tx.loan.findMany({
@@ -161,7 +163,7 @@ export class LoansService {
 
       if (activeLoans.some((loanItem) => this.isOverdue(loanItem.dueDate))) {
         throw new BadRequestException(
-          'A member with any overdue loan cannot borrow more.',
+          "A member with any overdue loan cannot borrow more.",
         );
       }
 
@@ -176,21 +178,20 @@ export class LoansService {
       }
 
       if (book.availableCopies <= 0) {
-        throw new BadRequestException('This book is currently unavailable.');
+        throw new BadRequestException("This book is currently unavailable.");
       }
 
-      const activeLoan = await tx.loan.findFirst({
+      const activeLoan = (await tx.loan.findFirst({
         where: {
           bookId: createLoanDto.bookId,
           memberId,
           returnedAt: null,
         },
-      });
+        include: this.loanInclude,
+      })) as LoanRecord | null;
 
       if (activeLoan) {
-        throw new BadRequestException(
-          'This member already has an active loan for the same book.',
-        );
+        return activeLoan;
       }
 
       const loanCount = await tx.loan.count();
@@ -205,13 +206,13 @@ export class LoansService {
           availableCopies: {
             decrement: 1,
           },
-          status: book.availableCopies - 1 > 0 ? 'available' : 'unavailable',
+          status: book.availableCopies - 1 > 0 ? "available" : "unavailable",
         },
       });
 
       return tx.loan.create({
         data: {
-          loanCode: `LN-${String(loanCount + 1).padStart(4, '0')}`,
+          loanCode: `LN-${String(loanCount + 1).padStart(4, "0")}`,
           bookId: createLoanDto.bookId,
           memberId,
           loanDate,
@@ -241,7 +242,7 @@ export class LoansService {
       }
 
       if (loanRecord.returnedAt) {
-        throw new BadRequestException('This loan has already been returned.');
+        throw new BadRequestException("This loan has already been returned.");
       }
 
       const book = await tx.book.findUnique({
@@ -249,7 +250,9 @@ export class LoansService {
       });
 
       if (!book) {
-        throw new NotFoundException(`Book with id "${loanRecord.bookId}" was not found.`);
+        throw new NotFoundException(
+          `Book with id "${loanRecord.bookId}" was not found.`,
+        );
       }
 
       await tx.book.update({
@@ -258,7 +261,7 @@ export class LoansService {
           availableCopies: {
             increment: 1,
           },
-          status: 'available',
+          status: "available",
         },
       });
 
@@ -281,30 +284,32 @@ export class LoansService {
   }
 
   async getOverdueReportBuffer() {
-    const overdueLoans = await this.findAll(undefined, 'overdue');
+    const overdueLoans = await this.findAll(undefined, "overdue");
 
     return new Promise<Buffer>((resolve, reject) => {
       const doc = new PDFDocument({ margin: 40, compress: false });
       const chunks: Buffer[] = [];
 
-      doc.on('data', (chunk) => {
+      doc.on("data", (chunk) => {
         chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
       });
-      doc.on('end', () => resolve(Buffer.concat(chunks)));
-      doc.on('error', reject);
+      doc.on("end", () => resolve(Buffer.concat(chunks)));
+      doc.on("error", reject);
 
-      doc.fontSize(18).text('Overdue Loans Report');
+      doc.fontSize(18).text("Overdue Loans Report");
       doc.moveDown(0.5);
       doc.fontSize(10).text(`Generated: ${new Date().toISOString()}`);
       doc.moveDown();
 
       if (overdueLoans.length === 0) {
-        doc.fontSize(12).text('No overdue loans at the time of generation.');
+        doc.fontSize(12).text("No overdue loans at the time of generation.");
       } else {
         overdueLoans.forEach((loan, index) => {
-          doc.fontSize(12).text(
-            `${index + 1}. ${loan.member.name} (${loan.member.membershipNumber})`,
-          );
+          doc
+            .fontSize(12)
+            .text(
+              `${index + 1}. ${loan.member.name} (${loan.member.membershipNumber})`,
+            );
           doc.fontSize(10).text(`Email: ${loan.member.email}`);
           doc.text(`Book: ${loan.book.title} by ${loan.book.author}`);
           doc.text(`Loan code: ${loan.loanCode}`);
@@ -354,7 +359,8 @@ export class LoansService {
     }
 
     return (
-      this.countOverdueWeekdays(dueDate, settledAt) * this.finePerOverdueWeekday()
+      this.countOverdueWeekdays(dueDate, settledAt) *
+      this.finePerOverdueWeekday()
     );
   }
 
@@ -383,7 +389,9 @@ export class LoansService {
   }
 
   private isOverdue(dueDate: Date) {
-    return this.startOfDay(new Date()).getTime() > this.startOfDay(dueDate).getTime();
+    return (
+      this.startOfDay(new Date()).getTime() > this.startOfDay(dueDate).getTime()
+    );
   }
 
   private addDays(date: Date, days: number) {
@@ -405,9 +413,9 @@ export class LoansService {
   }
 
   private formatCurrency(amount: number) {
-    return new Intl.NumberFormat('th-TH', {
-      style: 'currency',
-      currency: 'THB',
+    return new Intl.NumberFormat("th-TH", {
+      style: "currency",
+      currency: "THB",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
@@ -421,9 +429,9 @@ export class LoansService {
     };
 
     const envKeys: Record<BookCategory, string> = {
-      [BookCategory.TEXTBOOK]: 'LOAN_PERIOD_TEXTBOOK_DAYS',
-      [BookCategory.GENERAL]: 'LOAN_PERIOD_GENERAL_DAYS',
-      [BookCategory.NOVEL]: 'LOAN_PERIOD_NOVEL_DAYS',
+      [BookCategory.TEXTBOOK]: "LOAN_PERIOD_TEXTBOOK_DAYS",
+      [BookCategory.GENERAL]: "LOAN_PERIOD_GENERAL_DAYS",
+      [BookCategory.NOVEL]: "LOAN_PERIOD_NOVEL_DAYS",
     };
 
     return Number(
@@ -432,10 +440,10 @@ export class LoansService {
   }
 
   private finePerOverdueWeekday() {
-    return Number(this.configService.get('FINE_PER_OVERDUE_WEEKDAY') ?? 20);
+    return Number(this.configService.get("FINE_PER_OVERDUE_WEEKDAY") ?? 20);
   }
 
   private maxActiveLoans() {
-    return Number(this.configService.get('MAX_ACTIVE_LOANS') ?? 3);
+    return Number(this.configService.get("MAX_ACTIVE_LOANS") ?? 3);
   }
 }

@@ -6,7 +6,11 @@ import { SectionCard } from "@/components/section-card";
 import { useAuth } from "@/components/auth-provider";
 import { authorizedJsonRequest } from "@/lib/auth";
 import type { Loan, Member } from "@/lib/library-data";
-import { formatBookDisplayTitle, formatLoanStatus } from "@/lib/library-data";
+import {
+  formatBookCategory,
+  formatBookDisplayTitle,
+  formatLoanStatus
+} from "@/lib/library-data";
 import { formatDate } from "@/lib/format";
 
 export function LoansPageClient() {
@@ -90,6 +94,10 @@ export function LoansPageClient() {
                     <p>{loan.loanCode}</p>
                   </div>
                   <div>
+                    <span className="table-label">Category</span>
+                    <strong>{formatBookCategory(loan.book.category)}</strong>
+                  </div>
+                  <div>
                     <span className="table-label">Borrowed</span>
                     <strong>{formatDate(loan.loanDate)}</strong>
                   </div>
@@ -120,6 +128,10 @@ export function LoansPageClient() {
                   <div>
                     <h2>{formatBookDisplayTitle(loan.book)}</h2>
                     <p>{loan.loanCode}</p>
+                  </div>
+                  <div>
+                    <span className="table-label">Category</span>
+                    <strong>{formatBookCategory(loan.book.category)}</strong>
                   </div>
                   <div>
                     <span className="table-label">Returned</span>
@@ -165,6 +177,10 @@ export function LoansPageClient() {
                 <p>{loan.member.name}</p>
               </div>
               <div>
+                <span className="table-label">Category</span>
+                <strong>{formatBookCategory(loan.book.category)}</strong>
+              </div>
+              <div>
                 <span className="table-label">Borrowed</span>
                 <strong>{formatDate(loan.loanDate)}</strong>
               </div>
@@ -174,7 +190,10 @@ export function LoansPageClient() {
               </div>
               <div>
                 <span className="table-label">Status</span>
-                <strong>{formatLoanStatus(loan)}</strong>
+                <strong>
+                  {formatLoanStatus(loan)}
+                  {loan.status === "overdue" ? ` • ${loan.currentFine} THB` : ""}
+                </strong>
               </div>
             </article>
           ))}

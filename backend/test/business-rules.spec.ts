@@ -272,7 +272,44 @@ describe('Library lending business rules', () => {
     expect(borrowed.dueDate.toISOString()).toBe('2026-06-04T09:00:00.000Z');
   });
 
-  test('3. return on the same day gives 0 THB fine', async () => {
+  test('3. borrowing the same active book again returns the existing loan without creating a new one', async () => {
+    jest.setSystemTime(new Date('2026-06-01T09:00:00.000Z'));
+
+    const { prisma, tx } = createPrismaMock();
+    const member = memberFixture();
+    const textbook = bookFixture(BookCategory.TEXTBOOK, { id: 'textbook-1' });
+    const existingLoan = loanRecordFixture({
+      id: 'loan-existing',
+      loanCode: 'LN-0007',
+      bookId: textbook.id,
+      memberId: member.id,
+      dueDate: new Date('2026-06-04T09:00:00.000Z'),
+      book: textbook,
+      member,
+    });
+
+    tx.member.findUnique.mockResolvedValue(member);
+    tx.loan.findMany.mockResolvedValue([
+      {
+        dueDate: existingLoan.dueDate,
+      },
+    ]);
+    tx.book.findUnique.mockResolvedValue(textbook);
+    tx.loan.findFirst.mockResolvedValue(existingLoan);
+
+    const loansService = new LoansService(
+      prisma as never,
+      createConfigService() as never,
+    );
+    const borrowed = await loansService.create(member.id, { bookId: textbook.id });
+
+    expect(borrowed.id).toBe(existingLoan.id);
+    expect(tx.book.update).not.toHaveBeenCalled();
+    expect(tx.loan.count).not.toHaveBeenCalled();
+    expect(tx.loan.create).not.toHaveBeenCalled();
+  });
+
+  test('4. return on the same day gives 0 THB fine', async () => {
     jest.setSystemTime(new Date('2026-06-01T09:00:00.000Z'));
 
     const { prisma, tx } = createPrismaMock();
@@ -303,7 +340,7 @@ describe('Library lending business rules', () => {
     expect(returned.fineAmount).toBe(0);
   });
 
-  test('4. due last Friday and returned this Monday gives 20 THB fine', async () => {
+  test('5. due last Friday and returned this Monday gives 20 THB fine', async () => {
     jest.setSystemTime(new Date('2026-06-01T09:00:00.000Z'));
 
     const { prisma, tx } = createPrismaMock();
@@ -335,7 +372,7 @@ describe('Library lending business rules', () => {
     expect(returned.fineAmount).toBe(20);
   });
 
-  test('5. member with 3 active loans cannot borrow a 4th', async () => {
+  test('6. member with 3 active loans cannot borrow a 4th', async () => {
     jest.setSystemTime(new Date('2026-06-01T09:00:00.000Z'));
 
     const { prisma, tx } = createPrismaMock();
@@ -358,7 +395,7 @@ describe('Library lending business rules', () => {
     ).rejects.toThrow('A member can hold at most 3 active loans.');
   });
 
-  test('6. wrong password on member login is rejected', async () => {
+  test('7. wrong password on member login is rejected', async () => {
     const configService = createConfigService();
     const jwtService = createJwtService();
     const membersService = createMembersService();
@@ -382,7 +419,7 @@ describe('Library lending business rules', () => {
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
-  test('7. member with an overdue loan cannot borrow a new book', async () => {
+  test('8. member with an overdue loan cannot borrow a new book', async () => {
     jest.setSystemTime(new Date('2026-06-01T09:00:00.000Z'));
 
     const { prisma, tx } = createPrismaMock();
@@ -405,7 +442,7 @@ describe('Library lending business rules', () => {
     ).rejects.toThrow('A member with any overdue loan cannot borrow more.');
   });
 
-  test('8. fine counts only weekdays over a 3-week overdue return window', async () => {
+  test('9. fine counts only weekdays over a 3-week overdue return window', async () => {
     jest.setSystemTime(new Date('2026-06-01T09:00:00.000Z'));
 
     const { prisma, tx } = createPrismaMock();
@@ -437,7 +474,7 @@ describe('Library lending business rules', () => {
     expect(returned.fineAmount).toBe(260);
   });
 
-  test('9. overdue report PDF includes all overdue members with correct fines', async () => {
+  test('10. overdue report PDF includes all overdue members with correct fines', async () => {
     jest.setSystemTime(new Date('2026-06-01T09:00:00.000Z'));
 
     const { prisma } = createPrismaMock();
