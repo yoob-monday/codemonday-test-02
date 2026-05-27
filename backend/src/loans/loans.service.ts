@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { existsSync } from "node:fs";
 import PDFDocument from "pdfkit";
 import { BookCategory } from "../books/entities/book.entity";
 import { PrismaService } from "../prisma/prisma.service";
@@ -39,6 +40,14 @@ type LoanRecord = {
 
 @Injectable()
 export class LoansService {
+  private readonly pdfFontCandidates = [
+    "/Library/Fonts/Arial Unicode.ttf",
+    "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+    "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+    "/usr/share/fonts/opentype/noto/NotoSans-Regular.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+  ];
+
   private readonly loanInclude = {
     book: {
       select: {
@@ -288,7 +297,12 @@ export class LoansService {
 
     return new Promise<Buffer>((resolve, reject) => {
       const doc = new PDFDocument({ margin: 40, compress: false });
+      const pdfFontPath = this.resolvePdfFontPath();
       const chunks: Buffer[] = [];
+
+      if (pdfFontPath) {
+        doc.font(pdfFontPath);
+      }
 
       doc.on("data", (chunk) => {
         chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
@@ -304,18 +318,80 @@ export class LoansService {
       if (overdueLoans.length === 0) {
         doc.fontSize(12).text("No overdue loans at the time of generation.");
       } else {
-        overdueLoans.forEach((loan, index) => {
-          doc
-            .fontSize(12)
-            .text(
-              `${index + 1}. ${loan.member.name} (${loan.member.membershipNumber})`,
-            );
-          doc.fontSize(10).text(`Email: ${loan.member.email}`);
-          doc.text(`Book: ${loan.book.title} by ${loan.book.author}`);
-          doc.text(`Loan code: ${loan.loanCode}`);
-          doc.text(`Due date: ${loan.dueDate.toISOString().slice(0, 10)}`);
-          doc.text(`Fine: ${this.formatCurrency(loan.currentFine)}`);
-          doc.moveDown();
+        const columns = [
+          { header: "Member", width: 150 },
+          { header: "Overdue Book", width: 180 },
+          { header: "Due Date", width: 90 },
+          { header: "Fine", width: 80, align: "right" as const },
+        ];
+        const cellPadding = 6;
+
+        const drawHeader = () => {
+          let x = doc.page.margins.left;
+          const y = doc.y;
+
+          doc.fontSize(10);
+          columns.forEach((column) => {
+            doc.rect(x, y, column.width, 24).stroke();
+            doc.text(column.header, x + cellPadding, y + cellPadding, {
+              width: column.width - cellPadding * 2,
+              align: column.align ?? "left",
+            });
+            x += column.width;
+          });
+
+          doc.y = y + 24;
+        };
+
+        drawHeader();
+
+        overdueLoans.forEach((loan) => {
+          const row = [
+            `${loan.member.name}\n${loan.member.membershipNumber}`,
+            `${loan.book.title}\n${loan.book.author}`,
+            loan.dueDate.toISOString().slice(0, 10),
+            this.formatCurrency(loan.currentFine),
+          ];
+
+          doc.fontSize(10);
+
+          const rowHeight =
+            Math.max(
+              ...row.map((value, index) =>
+                doc.heightOfString(value, {
+                  width: columns[index].width - cellPadding * 2,
+                  align: columns[index].align ?? "left",
+                }),
+              ),
+            ) +
+            cellPadding * 2;
+
+          if (
+            doc.y + rowHeight >
+            doc.page.height - doc.page.margins.bottom
+          ) {
+            doc.addPage();
+
+            if (pdfFontPath) {
+              doc.font(pdfFontPath);
+            }
+
+            drawHeader();
+          }
+
+          let x = doc.page.margins.left;
+          const y = doc.y;
+
+          row.forEach((value, index) => {
+            doc.rect(x, y, columns[index].width, rowHeight).stroke();
+            doc.text(value, x + cellPadding, y + cellPadding, {
+              width: columns[index].width - cellPadding * 2,
+              align: columns[index].align ?? "left",
+            });
+            x += columns[index].width;
+          });
+
+          doc.y = y + rowHeight;
         });
       }
 
@@ -445,5 +521,17 @@ export class LoansService {
 
   private maxActiveLoans() {
     return Number(this.configService.get("MAX_ACTIVE_LOANS") ?? 3);
+  }
+
+  private resolvePdfFontPath() {
+    const configuredFontPath = this.configService.get<string>(
+      "REPORT_PDF_FONT_PATH",
+    );
+
+    if (configuredFontPath && existsSync(configuredFontPath)) {
+      return configuredFontPath;
+    }
+
+    return this.pdfFontCandidates.find((fontPath) => existsSync(fontPath));
   }
 }

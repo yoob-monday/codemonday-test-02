@@ -9,6 +9,7 @@ import {
 import { UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
+import PDFDocument from 'pdfkit';
 import { AuthService } from '../src/auth/auth.service';
 import { BookCategory } from '../src/books/entities/book.entity';
 import { LoansService } from '../src/loans/loans.service';
@@ -19,7 +20,9 @@ import {
   MemberTier,
 } from '../src/members/entities/member.entity';
 
-function createConfigService() {
+function createConfigService(
+  overrides: Record<string, string | undefined> = {},
+) {
   return {
     get: jest.fn((key: string) => {
       const values: Record<string, string | undefined> = {
@@ -31,6 +34,8 @@ function createConfigService() {
         LOAN_PERIOD_NOVEL_DAYS: '14',
         FINE_PER_OVERDUE_WEEKDAY: '20',
         MAX_ACTIVE_LOANS: '3',
+        REPORT_PDF_FONT_PATH: undefined,
+        ...overrides,
       };
 
       return values[key];
@@ -151,6 +156,7 @@ describe('Library lending business rules', () => {
   });
 
   afterEach(() => {
+    jest.restoreAllMocks();
     jest.useRealTimers();
   });
 
@@ -272,7 +278,7 @@ describe('Library lending business rules', () => {
     expect(borrowed.dueDate.toISOString()).toBe('2026-06-04T09:00:00.000Z');
   });
 
-  test('3. borrowing the same active book again returns the existing loan without creating a new one', async () => {
+  test('borrowing the same active book again returns the existing loan without creating a new one', async () => {
     jest.setSystemTime(new Date('2026-06-01T09:00:00.000Z'));
 
     const { prisma, tx } = createPrismaMock();
@@ -309,7 +315,7 @@ describe('Library lending business rules', () => {
     expect(tx.loan.create).not.toHaveBeenCalled();
   });
 
-  test('4. return on the same day gives 0 THB fine', async () => {
+  test('3. borrowed today and returned today -> fine is 0 THB', async () => {
     jest.setSystemTime(new Date('2026-06-01T09:00:00.000Z'));
 
     const { prisma, tx } = createPrismaMock();
@@ -340,7 +346,7 @@ describe('Library lending business rules', () => {
     expect(returned.fineAmount).toBe(0);
   });
 
-  test('5. due last Friday and returned this Monday gives 20 THB fine', async () => {
+  test('4. due_date = last Friday, return_date = this Monday -> fine is 20 THB', async () => {
     jest.setSystemTime(new Date('2026-06-01T09:00:00.000Z'));
 
     const { prisma, tx } = createPrismaMock();
@@ -372,7 +378,7 @@ describe('Library lending business rules', () => {
     expect(returned.fineAmount).toBe(20);
   });
 
-  test('6. member with 3 active loans cannot borrow a 4th', async () => {
+  test('5. member with 3 active loans cannot borrow a 4th', async () => {
     jest.setSystemTime(new Date('2026-06-01T09:00:00.000Z'));
 
     const { prisma, tx } = createPrismaMock();
@@ -395,7 +401,7 @@ describe('Library lending business rules', () => {
     ).rejects.toThrow('A member can hold at most 3 active loans.');
   });
 
-  test('7. wrong password on member login is rejected', async () => {
+  test('6. wrong password on member login is rejected', async () => {
     const configService = createConfigService();
     const jwtService = createJwtService();
     const membersService = createMembersService();
@@ -419,7 +425,7 @@ describe('Library lending business rules', () => {
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
-  test('8. member with an overdue loan cannot borrow a new book', async () => {
+  test('7. member with a loan past due date cannot borrow a new book', async () => {
     jest.setSystemTime(new Date('2026-06-01T09:00:00.000Z'));
 
     const { prisma, tx } = createPrismaMock();
@@ -442,7 +448,7 @@ describe('Library lending business rules', () => {
     ).rejects.toThrow('A member with any overdue loan cannot borrow more.');
   });
 
-  test('9. fine counts only weekdays over a 3-week overdue return window', async () => {
+  test('8. due_date = 3 weeks ago Wednesday, return_date = today -> fine counts only weekdays', async () => {
     jest.setSystemTime(new Date('2026-06-01T09:00:00.000Z'));
 
     const { prisma, tx } = createPrismaMock();
@@ -474,10 +480,25 @@ describe('Library lending business rules', () => {
     expect(returned.fineAmount).toBe(260);
   });
 
-  test('10. overdue report PDF includes all overdue members with correct fines', async () => {
+  test('report PDF prefers a configured font path when it exists', () => {
+    const { prisma } = createPrismaMock();
+    const configuredFontPath = `${process.cwd()}/package.json`;
+    const loansService = new LoansService(
+      prisma as never,
+      createConfigService({
+        REPORT_PDF_FONT_PATH: configuredFontPath,
+      }) as never,
+    );
+
+    expect((loansService as any).resolvePdfFontPath()).toBe(configuredFontPath);
+  });
+
+  test('9. overdue report PDF includes all overdue members with correct fines', async () => {
     jest.setSystemTime(new Date('2026-06-01T09:00:00.000Z'));
 
     const { prisma } = createPrismaMock();
+    const textSpy = jest.spyOn(PDFDocument.prototype as any, 'text');
+
     prisma.loan.findMany.mockResolvedValue([
       loanRecordFixture({
         id: 'loan-a',
@@ -517,14 +538,22 @@ describe('Library lending business rules', () => {
     );
     const overdueLoans = await loansService.findAll(undefined, 'overdue');
     const pdf = await loansService.getOverdueReportBuffer();
-    const text = pdf.toString('latin1');
+    const renderedText = textSpy.mock.calls.map(([value]) => value);
 
     expect(overdueLoans).toHaveLength(2);
     expect(overdueLoans.map((loan) => loan.currentFine)).toEqual([20, 40]);
-    expect(text.startsWith('%PDF')).toBe(true);
-    expect(text).toContain('536f6e69612050');
-    expect(text).toContain('4d61726375732052656564');
-    expect(text).toContain('e3f3230');
-    expect(text).toContain('e3f3430');
+    expect(pdf.toString('latin1').startsWith('%PDF')).toBe(true);
+    expect(renderedText).toContain('Member');
+    expect(renderedText).toContain('Overdue Book');
+    expect(renderedText).toContain('Due Date');
+    expect(renderedText).toContain('Fine');
+    expect(renderedText).toContain('Sonia Patel\nMBR-0001');
+    expect(renderedText).toContain('Marcus Reed\nMBR-0002');
+    expect(renderedText).toContain('Designing Human Systems\nM. A. Velasquez');
+    expect(renderedText).toContain('Quiet Physics of Light\nDr. Suri Halden');
+    expect(renderedText).toContain('2026-05-29');
+    expect(renderedText).toContain('2026-05-28');
+    expect(renderedText).toContain(formatThb(20));
+    expect(renderedText).toContain(formatThb(40));
   });
 });
