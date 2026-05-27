@@ -5,6 +5,7 @@ import {
   buildActivities,
   buildDashboardStats,
   formatBookCategory,
+  formatBookDisplayTitle,
   formatBookStatus,
   formatLoanStatus,
   getBooks,
@@ -37,7 +38,7 @@ export default async function HomePage() {
           <p className="eyebrow">Integrated Workspace</p>
           <h1 className="hero-title">A library lending system backed by live inventory, members, and loan rules.</h1>
           <p className="hero-text">
-            The dashboard now reads from the Nest API and reflects seeded PostgreSQL data in real time.
+            แดชบอร์ดนี้ดึงข้อมูลจาก Nest API โดยตรง และสะท้อนข้อมูลหนังสือ สมาชิก และสถานะการยืมคืนจาก PostgreSQL แบบเรียลไทม์
           </p>
           <div className="hero-actions">
             <Link href="/catalog" className="button button-primary">
@@ -87,7 +88,7 @@ export default async function HomePage() {
                 return (
                   <article key={loan.id} className="list-row">
                     <div>
-                      <h3>{loan.book.title}</h3>
+                      <h3>{formatBookDisplayTitle(loan.book)}</h3>
                       <p>
                         {loan.member.name} • due {formatDate(loan.dueDate)}
                       </p>
@@ -99,7 +100,7 @@ export default async function HomePage() {
                 );
               })
             ) : (
-              <p className="muted-copy">No overdue or due-soon items right now.</p>
+              <p className="muted-copy">ขณะนี้ยังไม่มีรายการที่เกินกำหนดหรือใกล้ถึงวันครบกำหนด</p>
             )}
           </div>
         </SectionCard>
@@ -127,7 +128,7 @@ export default async function HomePage() {
                 <span>{formatBookCategory(book.category)}</span>
                 <span>{book.shelfCode}</span>
               </div>
-              <h3>{book.title}</h3>
+              <h3>{formatBookDisplayTitle(book)}</h3>
               <p>{book.author}</p>
               <strong>{formatBookStatus(book.status, book.availableCopies)}</strong>
             </Link>

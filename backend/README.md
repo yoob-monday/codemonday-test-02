@@ -14,13 +14,24 @@ NestJS backend for a library lending system using Prisma with PostgreSQL.
 ## Getting started
 
 ```bash
+cp .env.example .env
 npm install
-npx prisma generate
-npx prisma db push
+npm run db:setup
 npm run start:dev
 ```
 
-The API runs at `http://localhost:3000/api`.
+The API runs at `http://localhost:3001/api`.
+
+## Lending rules
+
+- `textbook`: 3 days
+- `general`: 7 days
+- `novel`: 14 days
+- Overdue fines are `20 THB` per overdue weekday
+- Saturday and Sunday do not count toward overdue fines
+- Same-day returns are always free
+- A member can hold at most 3 active loans
+- A member with any overdue loan cannot borrow more
 
 ## Main endpoints
 

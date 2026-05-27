@@ -71,16 +71,11 @@ export class BooksService {
   create(createBookDto: CreateBookDto) {
     return this.prisma.book.create({
       data: {
-        title: createBookDto.title,
-        author: createBookDto.author,
-        category: createBookDto.category,
+        ...createBookDto,
         slug: this.buildSlug(createBookDto.title),
-        isbn: `AUTO-${crypto.randomUUID().slice(0, 12).toUpperCase()}`,
-        shelfCode: this.buildShelfCode(createBookDto.category),
-        summary: '',
-        publishedYear: 0,
-        totalCopies: createBookDto.copies,
-        availableCopies: createBookDto.copies,
+        summary: createBookDto.summary,
+        totalCopies: createBookDto.totalCopies,
+        availableCopies: createBookDto.totalCopies,
         status: BookStatus.AVAILABLE,
       },
     }) as Promise<Book>;
@@ -91,21 +86,19 @@ export class BooksService {
     const borrowedCopies = book.totalCopies - book.availableCopies;
 
     if (
-      updateBookDto.copies !== undefined &&
-      updateBookDto.copies < borrowedCopies
+      updateBookDto.totalCopies !== undefined &&
+      updateBookDto.totalCopies < borrowedCopies
     ) {
       throw new BadRequestException(
         'Total copies cannot be less than the number of borrowed copies.',
       );
     }
 
-    const totalCopies = updateBookDto.copies ?? book.totalCopies;
+    const totalCopies = updateBookDto.totalCopies ?? book.totalCopies;
     return this.prisma.book.update({
       where: { id },
       data: {
-        title: updateBookDto.title,
-        author: updateBookDto.author,
-        category: updateBookDto.category,
+        ...updateBookDto,
         ...(updateBookDto.title
           ? {
               slug: this.buildSlug(updateBookDto.title),
@@ -167,10 +160,6 @@ export class BooksService {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
 
-    return `${slug || 'book'}-${crypto.randomUUID().slice(0, 8)}`;
-  }
-
-  private buildShelfCode(category: string) {
-    return `${category.slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-6)}`;
+    return slug || 'book';
   }
 }

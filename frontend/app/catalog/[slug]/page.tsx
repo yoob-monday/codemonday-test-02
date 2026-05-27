@@ -2,7 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SectionCard } from "@/components/section-card";
-import { books, getBookBySlug, loans, members } from "@/lib/library-data";
+import {
+  formatBookCategory,
+  formatBookDisplayTitle,
+  formatBookSummary,
+  formatBookStatus,
+  formatLoanStatus,
+  getBookBySlug,
+  getLoans
+} from "@/lib/library-data";
 import { formatDate } from "@/lib/format";
 
 type BookPageProps = {
@@ -11,43 +19,39 @@ type BookPageProps = {
   };
 };
 
-export function generateStaticParams() {
-  return books.map((book) => ({
-    slug: book.slug
-  }));
-}
+export async function generateMetadata({ params }: BookPageProps): Promise<Metadata> {
+  try {
+    const book = await getBookBySlug(params.slug);
 
-export function generateMetadata({ params }: BookPageProps): Metadata {
-  const book = getBookBySlug(params.slug);
-
-  if (!book) {
+    return {
+      title: `${formatBookDisplayTitle(book)} | Lantern Library`,
+      description: formatBookSummary(book)
+    };
+  } catch {
     return {
       title: "Book Not Found"
     };
   }
-
-  return {
-    title: `${book.title} | Lantern Library`,
-    description: book.summary
-  };
 }
 
-export default function BookDetailPage({ params }: BookPageProps) {
-  const book = getBookBySlug(params.slug);
+export default async function BookDetailPage({ params }: BookPageProps) {
+  let book;
 
-  if (!book) {
+  try {
+    book = await getBookBySlug(params.slug);
+  } catch {
     notFound();
   }
 
-  const currentLoan = loans.find((loan) => loan.bookSlug === book.slug);
-  const borrower = currentLoan ? members.find((member) => member.id === currentLoan.memberId) : null;
+  const loans = await getLoans();
+  const currentLoan = loans.find((loan) => loan.bookId === book.id && loan.returnedAt === null);
 
   return (
     <div className="page-stack">
       <section className="page-header">
         <p className="eyebrow">Book Profile</p>
-        <h1 className="page-title">{book.title}</h1>
-        <p className="page-description">{book.summary}</p>
+        <h1 className="page-title">{formatBookDisplayTitle(book)}</h1>
+        <p className="page-description">{formatBookSummary(book)}</p>
       </section>
 
       <div className="content-grid">
@@ -55,17 +59,21 @@ export default function BookDetailPage({ params }: BookPageProps) {
           <div className="detail-stack">
             <div className="detail-item">
               <span>Status</span>
-              <strong>{book.status}</strong>
+              <strong>{formatBookStatus(book.status, book.availableCopies)}</strong>
             </div>
             <div className="detail-item">
               <span>Copies</span>
               <strong>
-                {book.copiesAvailable} available of {book.copiesOwned}
+                พร้อมให้ยืม {book.availableCopies} จากทั้งหมด {book.totalCopies} เล่ม
               </strong>
             </div>
             <div className="detail-item">
               <span>Shelf</span>
-              <strong>{book.shelf}</strong>
+              <strong>{book.shelfCode}</strong>
+            </div>
+            <div className="detail-item">
+              <span>Category</span>
+              <strong>{formatBookCategory(book.category)}</strong>
             </div>
             <div className="detail-item">
               <span>ISBN</span>
@@ -75,27 +83,27 @@ export default function BookDetailPage({ params }: BookPageProps) {
         </SectionCard>
 
         <SectionCard title="Current Borrower" eyebrow="Loan Snapshot">
-          {currentLoan && borrower ? (
+          {currentLoan ? (
             <div className="detail-stack">
               <div className="detail-item">
                 <span>Member</span>
-                <strong>{borrower.name}</strong>
+                <strong>{currentLoan.member.name}</strong>
               </div>
               <div className="detail-item">
                 <span>Borrowed On</span>
-                <strong>{formatDate(currentLoan.borrowedOn)}</strong>
+                <strong>{formatDate(currentLoan.loanDate)}</strong>
               </div>
               <div className="detail-item">
                 <span>Due On</span>
-                <strong>{formatDate(currentLoan.dueOn)}</strong>
+                <strong>{formatDate(currentLoan.dueDate)}</strong>
               </div>
               <div className="detail-item">
                 <span>Status</span>
-                <strong>{currentLoan.status}</strong>
+                <strong>{formatLoanStatus(currentLoan)}</strong>
               </div>
             </div>
           ) : (
-            <p className="muted-copy">This title is currently available on the shelf.</p>
+            <p className="muted-copy">หนังสือเล่มนี้พร้อมให้ยืมและอยู่บนชั้นหนังสือตามตำแหน่งที่ระบุ</p>
           )}
         </SectionCard>
       </div>

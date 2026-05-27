@@ -5,7 +5,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Lantern Library",
-  description: "A library lending system built with Next.js App Router."
+  description: "ระบบห้องสมุดสำหรับงานยืมคืนหนังสือที่พัฒนาด้วย Next.js App Router"
 };
 
 export default function RootLayout({
@@ -23,7 +23,7 @@ export default function RootLayout({
               <span className="brand-mark">LL</span>
               <span>
                 <strong>Lantern Library</strong>
-                <small>Lending operations console</small>
+                <small>ระบบจัดการงานยืมคืนหนังสือ</small>
               </span>
             </Link>
             <AppNav />

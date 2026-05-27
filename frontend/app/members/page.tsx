@@ -1,15 +1,17 @@
 import { SectionCard } from "@/components/section-card";
-import { members } from "@/lib/library-data";
+import { getMembers } from "@/lib/library-data";
 import { formatDate } from "@/lib/format";
 
-export default function MembersPage() {
+export default async function MembersPage() {
+  const members = await getMembers();
+
   return (
     <div className="page-stack">
       <section className="page-header">
         <p className="eyebrow">Members</p>
         <h1 className="page-title">Borrower relationships</h1>
         <p className="page-description">
-          See active lending load, membership tiers, and join dates across the patron base.
+          ข้อมูลสมาชิกมาจาก backend โดยตรง และแสดงจำนวนรายการยืมที่ยัง active จากฐานข้อมูลปัจจุบัน
         </p>
       </section>
 
@@ -27,11 +29,11 @@ export default function MembersPage() {
               </div>
               <div>
                 <span className="table-label">Active Loans</span>
-                <strong>{member.loansActive}</strong>
+                <strong>{member.activeLoansCount}</strong>
               </div>
               <div>
                 <span className="table-label">Joined</span>
-                <strong>{formatDate(member.joinedOn)}</strong>
+                <strong>{formatDate(member.createdAt)}</strong>
               </div>
             </article>
           ))}

@@ -26,6 +26,7 @@ export class AppController {
         loans: '/api/loans',
         summary: '/api/summary',
         health: '/api/health',
+        swagger: '/api/docs',
       },
     };
   }
@@ -62,7 +63,9 @@ export class AppController {
           .length,
       },
       loans: {
-        active: loans.filter((loan) => loan.status === LoanStatus.BORROWED).length,
+        active: loans.filter((loan) =>
+          [LoanStatus.BORROWED, LoanStatus.OVERDUE].includes(loan.status),
+        ).length,
         overdue: loans.filter((loan) => loan.status === LoanStatus.OVERDUE).length,
         returned: loans.filter((loan) => loan.status === LoanStatus.RETURNED).length,
       },

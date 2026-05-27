@@ -11,11 +11,28 @@ export class UpdateBookDto {
   author?: string;
 
   @IsOptional()
+  @IsString()
+  isbn?: string;
+
+  @IsOptional()
   @IsEnum(BookCategory)
   category?: BookCategory;
 
   @IsOptional()
+  @IsString()
+  shelfCode?: string;
+
+  @IsOptional()
+  @IsString()
+  summary?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  publishedYear?: number;
+
+  @IsOptional()
   @IsInt()
   @Min(1)
-  copies?: number;
+  totalCopies?: number;
 }
