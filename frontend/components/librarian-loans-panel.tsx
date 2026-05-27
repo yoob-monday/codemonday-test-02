@@ -29,6 +29,7 @@ export function LibrarianLoansPanel({ members }: LibrarianLoansPanelProps) {
     if (user?.role !== "librarian" || !token) {
       return;
     }
+    const authToken = token;
 
     let ignore = false;
 
@@ -66,8 +67,10 @@ export function LibrarianLoansPanel({ members }: LibrarianLoansPanelProps) {
   if (user?.role !== "librarian" || !token) {
     return null;
   }
-
   const authToken = token;
+  const filteredOverdueLoans = selectedMemberId
+    ? overdueLoans.filter((loan) => loan.member.id === selectedMemberId)
+    : overdueLoans;
 
   function handleReturn(loanId: string) {
     startTransition(async () => {
@@ -167,10 +170,10 @@ export function LibrarianLoansPanel({ members }: LibrarianLoansPanelProps) {
 
         <div className="table-list">
           <h3 className="librarian-subtitle">Overdue loans</h3>
-          {isLoaded && overdueLoans.length === 0 ? (
+          {isLoaded && filteredOverdueLoans.length === 0 ? (
             <p className="muted-copy">No overdue loans right now.</p>
           ) : (
-            overdueLoans.map((loan) => (
+            filteredOverdueLoans.map((loan) => (
               <article key={loan.id} className="list-row librarian-row">
                 <div>
                   <h3>{formatBookDisplayTitle(loan.book)}</h3>

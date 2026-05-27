@@ -25,12 +25,13 @@ export function BorrowBookPanel({ book }: BorrowBookPanelProps) {
     if (!isReady || !token || user?.role !== "member") {
       return;
     }
+    const authToken = token;
 
     let ignore = false;
 
     async function load() {
       try {
-        const loans = await authorizedJsonRequest<Loan[]>("/loans/me?scope=all", token);
+        const loans = await authorizedJsonRequest<Loan[]>("/loans/me?scope=all", authToken);
         const loanForBook = loans.find(
           (loan) => loan.bookId === book.id && loan.returnedAt === null
         );
@@ -64,13 +65,15 @@ export function BorrowBookPanel({ book }: BorrowBookPanelProps) {
     );
   }
 
+  const authToken = token;
+
   function handleBorrow() {
     setError(null);
     setSuccessLoan(null);
 
     startTransition(async () => {
       try {
-        const loan = await authorizedJsonRequest<Loan>("/loans", token, {
+        const loan = await authorizedJsonRequest<Loan>("/loans", authToken, {
           method: "POST",
           body: JSON.stringify({
             bookId: book.id

@@ -18,6 +18,7 @@ export function MembersPageClient() {
     if (!isReady || !token || !user) {
       return;
     }
+    const authToken = token;
 
     if (user.role !== "librarian") {
       router.replace("/");
@@ -29,7 +30,7 @@ export function MembersPageClient() {
     async function load() {
       try {
         setError(null);
-        const directory = await authorizedJsonRequest<Member[]>("/members", token);
+        const directory = await authorizedJsonRequest<Member[]>("/members", authToken);
 
         if (!ignore) {
           setMembers(directory);

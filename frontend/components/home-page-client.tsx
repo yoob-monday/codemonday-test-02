@@ -28,6 +28,8 @@ export function HomePageClient() {
     if (!isReady || !user) {
       return;
     }
+    const currentUser = user;
+    const authToken = token;
 
     let ignore = false;
 
@@ -36,10 +38,10 @@ export function HomePageClient() {
         setError(null);
         const catalog = await getBooks();
 
-        if (user.role === "librarian" && token) {
+        if (currentUser.role === "librarian" && authToken) {
           const [dashboardSummary, activeLoans] = await Promise.all([
-            authorizedJsonRequest<LibrarySummary>("/summary", token),
-            authorizedJsonRequest<Loan[]>("/loans?status=active", token)
+            authorizedJsonRequest<LibrarySummary>("/summary", authToken),
+            authorizedJsonRequest<Loan[]>("/loans?status=active", authToken)
           ]);
 
           if (!ignore) {
@@ -51,8 +53,8 @@ export function HomePageClient() {
           return;
         }
 
-        if (user.role === "member" && token) {
-          const myLoans = await authorizedJsonRequest<Loan[]>("/loans/me?scope=all", token);
+        if (currentUser.role === "member" && authToken) {
+          const myLoans = await authorizedJsonRequest<Loan[]>("/loans/me?scope=all", authToken);
 
           if (!ignore) {
             setBooks(catalog);

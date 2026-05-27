@@ -19,6 +19,8 @@ export function LoansPageClient() {
     if (!isReady || !token || !user) {
       return;
     }
+    const currentUser = user;
+    const authToken = token;
 
     let ignore = false;
 
@@ -26,10 +28,10 @@ export function LoansPageClient() {
       try {
         setError(null);
 
-        if (user.role === "librarian") {
+        if (currentUser.role === "librarian") {
           const [allLoans, allMembers] = await Promise.all([
-            authorizedJsonRequest<Loan[]>("/loans?status=active", token),
-            authorizedJsonRequest<Member[]>("/members", token)
+            authorizedJsonRequest<Loan[]>("/loans?status=active", authToken),
+            authorizedJsonRequest<Member[]>("/members", authToken)
           ]);
 
           if (!ignore) {
@@ -40,7 +42,7 @@ export function LoansPageClient() {
           return;
         }
 
-        const myLoans = await authorizedJsonRequest<Loan[]>("/loans/me?scope=all", token);
+        const myLoans = await authorizedJsonRequest<Loan[]>("/loans/me?scope=all", authToken);
 
         if (!ignore) {
           setLoans(myLoans);
@@ -97,7 +99,10 @@ export function LoansPageClient() {
                   </div>
                   <div>
                     <span className="table-label">Status</span>
-                    <strong>{formatLoanStatus(loan)}</strong>
+                    <strong>
+                      {formatLoanStatus(loan)}
+                      {loan.status === "overdue" ? ` • ${loan.currentFine} THB` : ""}
+                    </strong>
                   </div>
                 </article>
               ))
