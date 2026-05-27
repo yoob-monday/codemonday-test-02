@@ -55,8 +55,6 @@ export class LoansController {
   }
 
   @Get()
-  @UseGuards(AuthGuard, RolesGuard)
-  @Roles(MemberRole.LIBRARIAN)
   findAll(
     @Query('memberId') memberId?: string,
     @Query('status') status?: string,
@@ -65,8 +63,6 @@ export class LoansController {
   }
 
   @Get(':id')
-  @UseGuards(AuthGuard, RolesGuard)
-  @Roles(MemberRole.LIBRARIAN)
   findOne(@Param('id') id: string) {
     return this.loansService.findOne(id);
   }

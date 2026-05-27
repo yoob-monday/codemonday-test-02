@@ -7,8 +7,6 @@ import { MemberRole } from './entities/member.entity';
 import { MembersService } from './members.service';
 
 @Controller('members')
-@UseGuards(AuthGuard, RolesGuard)
-@Roles(MemberRole.LIBRARIAN)
 export class MembersController {
   constructor(private readonly membersService: MembersService) {}
 
@@ -23,6 +21,8 @@ export class MembersController {
   }
 
   @Patch(':id')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(MemberRole.LIBRARIAN)
   update(@Param('id') id: string, @Body() updateMemberDto: UpdateMemberDto) {
     return this.membersService.update(id, updateMemberDto);
   }

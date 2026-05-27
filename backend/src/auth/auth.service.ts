@@ -62,7 +62,7 @@ export class AuthService {
 
     const member = await this.membersService.findByEmail(loginDto.identifier);
 
-    if (!member) {
+    if (!member?.passwordHash) {
       throw new UnauthorizedException('Invalid email or password.');
     }
 

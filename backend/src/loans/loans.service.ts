@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import PDFDocument from 'pdfkit';
 import { BookCategory } from '../books/entities/book.entity';
 import { PrismaService } from '../prisma/prisma.service';
@@ -14,9 +15,6 @@ const LOAN_PERIOD_DAYS: Record<BookCategory, number> = {
   [BookCategory.GENERAL]: 7,
   [BookCategory.NOVEL]: 14,
 };
-
-const MAX_ACTIVE_LOANS = 3;
-const FINE_PER_OVERDUE_WEEKDAY = 20;
 
 type LoanRecord = {
   id: string;
@@ -69,7 +67,10 @@ export class LoansService {
     },
   };
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+  ) {}
 
   async findAll(memberId?: string, status?: string) {
     const loans = (await this.prisma.loan.findMany({
@@ -149,25 +150,6 @@ export class LoansService {
 
       if (member.status !== 'active') {
         throw new BadRequestException('Only active members can borrow books.');
-      }
-
-      const activeLoans = await tx.loan.findMany({
-        where: {
-          memberId,
-          returnedAt: null,
-        },
-      });
-
-      if (activeLoans.length >= MAX_ACTIVE_LOANS) {
-        throw new BadRequestException(
-          `A member can hold at most ${MAX_ACTIVE_LOANS} active loans.`,
-        );
-      }
-
-      if (activeLoans.some((loanItem) => this.isOverdue(loanItem.dueDate))) {
-        throw new BadRequestException(
-          'A member with any overdue loan cannot borrow more.',
-        );
       }
 
       const book = await tx.book.findUnique({
@@ -274,7 +256,6 @@ export class LoansService {
           returnedAt: returnDate,
           status: LoanStatus.RETURNED,
           fineAmount: this.calculateFine(
-            loanRecord.loanDate,
             loanRecord.dueDate,
             returnDate,
           ),
@@ -329,15 +310,12 @@ export class LoansService {
     const currentFine =
       status === LoanStatus.RETURNED
         ? loan.fineAmount
-        : this.calculateFine(loan.loanDate, loan.dueDate, new Date());
+        : this.calculateFine(loan.dueDate, new Date());
 
     return {
       ...loan,
       status,
-      daysOverdue: this.countOverdueWeekdays(
-        loan.dueDate,
-        loan.returnedAt ?? new Date(),
-      ),
+      daysOverdue: this.countDaysOverdue(loan.dueDate, loan.returnedAt ?? new Date()),
       currentFine,
     };
   }
@@ -354,17 +332,11 @@ export class LoansService {
     return LoanStatus.BORROWED;
   }
 
-  private calculateFine(loanDate: Date, dueDate: Date, settledAt: Date) {
-    if (this.isSameDay(loanDate, settledAt)) {
-      return 0;
-    }
-
-    return (
-      this.countOverdueWeekdays(dueDate, settledAt) * FINE_PER_OVERDUE_WEEKDAY
-    );
+  private calculateFine(dueDate: Date, settledAt: Date) {
+    return this.countDaysOverdue(dueDate, settledAt) * this.finePerDay();
   }
 
-  private countOverdueWeekdays(dueDate: Date, settledAt: Date) {
+  private countDaysOverdue(dueDate: Date, settledAt: Date) {
     const due = this.startOfDay(dueDate);
     const settled = this.startOfDay(settledAt);
 
@@ -372,20 +344,7 @@ export class LoansService {
       return 0;
     }
 
-    let days = 0;
-    const cursor = this.addDays(due, 1);
-
-    while (cursor.getTime() <= settled.getTime()) {
-      const day = cursor.getDay();
-
-      if (day !== 0 && day !== 6) {
-        days += 1;
-      }
-
-      cursor.setDate(cursor.getDate() + 1);
-    }
-
-    return days;
+    return Math.ceil((settled.getTime() - due.getTime()) / (24 * 60 * 60 * 1000));
   }
 
   private isOverdue(dueDate: Date) {
@@ -402,12 +361,8 @@ export class LoansService {
     return new Date(date.getFullYear(), date.getMonth(), date.getDate());
   }
 
-  private isSameDay(left: Date, right: Date) {
-    return (
-      left.getFullYear() === right.getFullYear() &&
-      left.getMonth() === right.getMonth() &&
-      left.getDate() === right.getDate()
-    );
+  private finePerDay() {
+    return Number(this.configService.get('FINE_PER_DAY', '10'));
   }
 
   private formatCurrency(amount: number) {

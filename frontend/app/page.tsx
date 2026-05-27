@@ -2,28 +2,42 @@ import Link from "next/link";
 import { SectionCard } from "@/components/section-card";
 import { StatCard } from "@/components/stat-card";
 import {
-  activities,
-  books,
-  dashboardStats,
-  getBookForLoan,
-  getMemberById,
-  loans
+  buildActivities,
+  buildDashboardStats,
+  formatBookCategory,
+  formatBookStatus,
+  formatLoanStatus,
+  getBooks,
+  getLoans,
+  getMembers,
+  getSummary
 } from "@/lib/library-data";
 import { formatDate } from "@/lib/format";
 
-const featuredBooks = books.slice(0, 3);
-const urgentLoans = loans.filter((loan) => loan.status !== "On Time");
+export default async function HomePage() {
+  const [summary, books, loans, members] = await Promise.all([
+    getSummary(),
+    getBooks(),
+    getLoans(),
+    getMembers()
+  ]);
 
-export default function HomePage() {
+  const featuredBooks = books.slice(0, 3);
+  const priorityLoans = loans.filter((loan) => {
+    const status = formatLoanStatus(loan);
+    return status === "Overdue" || status === "Due Soon";
+  });
+  const activities = buildActivities(loans, members);
+  const dashboardStats = buildDashboardStats(summary);
+
   return (
     <div className="page-stack">
       <section className="hero">
         <div className="hero-copy">
-          <p className="eyebrow">App Router Demo</p>
-          <h1 className="hero-title">A library lending system designed for calm, fast circulation work.</h1>
+          <p className="eyebrow">Integrated Workspace</p>
+          <h1 className="hero-title">A library lending system backed by live inventory, members, and loan rules.</h1>
           <p className="hero-text">
-            Track inventory, member activity, and due dates from a single operational view built in
-            Next.js.
+            The dashboard now reads from the Nest API and reflects seeded PostgreSQL data in real time.
           </p>
           <div className="hero-actions">
             <Link href="/catalog" className="button button-primary">
@@ -38,20 +52,20 @@ export default function HomePage() {
           <p className="mini-label">Today&apos;s circulation pulse</p>
           <div className="pulse-grid">
             <div>
-              <span>Check-outs</span>
-              <strong>24</strong>
+              <span>Titles</span>
+              <strong>{summary.books.totalTitles}</strong>
             </div>
             <div>
-              <span>Returns</span>
-              <strong>18</strong>
+              <span>Members</span>
+              <strong>{summary.members.total}</strong>
             </div>
             <div>
-              <span>Reservations</span>
-              <strong>7</strong>
+              <span>Active</span>
+              <strong>{summary.loans.active}</strong>
             </div>
             <div>
-              <span>Desk wait</span>
-              <strong>4 min</strong>
+              <span>Overdue</span>
+              <strong>{summary.loans.overdue}</strong>
             </div>
           </div>
         </div>
@@ -66,24 +80,27 @@ export default function HomePage() {
       <section className="content-grid">
         <SectionCard title="Attention Queue" eyebrow="Due Dates">
           <div className="list-stack">
-            {urgentLoans.map((loan) => {
-              const book = getBookForLoan(loan.bookSlug);
-              const member = getMemberById(loan.memberId);
+            {priorityLoans.length > 0 ? (
+              priorityLoans.map((loan) => {
+                const status = formatLoanStatus(loan);
 
-              return (
-                <article key={loan.id} className="list-row">
-                  <div>
-                    <h3>{book?.title}</h3>
-                    <p>
-                      {member?.name} • due {formatDate(loan.dueOn)}
-                    </p>
-                  </div>
-                  <span className={`status-pill status-${loan.status.toLowerCase().replace(" ", "-")}`}>
-                    {loan.status}
-                  </span>
-                </article>
-              );
-            })}
+                return (
+                  <article key={loan.id} className="list-row">
+                    <div>
+                      <h3>{loan.book.title}</h3>
+                      <p>
+                        {loan.member.name} • due {formatDate(loan.dueDate)}
+                      </p>
+                    </div>
+                    <span className={`status-pill status-${status.toLowerCase().replace(" ", "-")}`}>
+                      {status}
+                    </span>
+                  </article>
+                );
+              })
+            ) : (
+              <p className="muted-copy">No overdue or due-soon items right now.</p>
+            )}
           </div>
         </SectionCard>
 
@@ -107,12 +124,12 @@ export default function HomePage() {
           {featuredBooks.map((book) => (
             <Link key={book.id} href={`/catalog/${book.slug}`} className="book-card">
               <div className="book-meta">
-                <span>{book.category}</span>
-                <span>{book.shelf}</span>
+                <span>{formatBookCategory(book.category)}</span>
+                <span>{book.shelfCode}</span>
               </div>
               <h3>{book.title}</h3>
               <p>{book.author}</p>
-              <strong>{book.status}</strong>
+              <strong>{formatBookStatus(book.status, book.availableCopies)}</strong>
             </Link>
           ))}
         </div>
