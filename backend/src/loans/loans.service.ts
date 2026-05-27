@@ -3,20 +3,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import PDFDocument from 'pdfkit';
 import { BookCategory } from '../books/entities/book.entity';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateLoanDto } from './dto/create-loan.dto';
 import { LoanStatus } from './entities/loan.entity';
-
-const LOAN_PERIOD_DAYS: Record<BookCategory, number> = {
-  [BookCategory.TEXTBOOK]: 3,
-  [BookCategory.GENERAL]: 7,
-  [BookCategory.NOVEL]: 14,
-};
-
-const MAX_ACTIVE_LOANS = 3;
-const FINE_PER_OVERDUE_WEEKDAY = 20;
 
 type LoanRecord = {
   id: string;
@@ -69,7 +61,10 @@ export class LoansService {
     },
   };
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+  ) {}
 
   async findAll(memberId?: string, status?: string) {
     const loans = (await this.prisma.loan.findMany({
@@ -158,9 +153,9 @@ export class LoansService {
         },
       });
 
-      if (activeLoans.length >= MAX_ACTIVE_LOANS) {
+      if (activeLoans.length >= this.maxActiveLoans()) {
         throw new BadRequestException(
-          `A member can hold at most ${MAX_ACTIVE_LOANS} active loans.`,
+          `A member can hold at most ${this.maxActiveLoans()} active loans.`,
         );
       }
 
@@ -201,8 +196,7 @@ export class LoansService {
       const loanCount = await tx.loan.count();
       const dueDate = this.addDays(
         loanDate,
-        LOAN_PERIOD_DAYS[book.category as BookCategory] ??
-          LOAN_PERIOD_DAYS.general,
+        this.loanPeriodDays(book.category as BookCategory),
       );
 
       await tx.book.update({
@@ -290,7 +284,7 @@ export class LoansService {
     const overdueLoans = await this.findAll(undefined, 'overdue');
 
     return new Promise<Buffer>((resolve, reject) => {
-      const doc = new PDFDocument({ margin: 40 });
+      const doc = new PDFDocument({ margin: 40, compress: false });
       const chunks: Buffer[] = [];
 
       doc.on('data', (chunk) => {
@@ -360,7 +354,7 @@ export class LoansService {
     }
 
     return (
-      this.countOverdueWeekdays(dueDate, settledAt) * FINE_PER_OVERDUE_WEEKDAY
+      this.countOverdueWeekdays(dueDate, settledAt) * this.finePerOverdueWeekday()
     );
   }
 
@@ -417,5 +411,31 @@ export class LoansService {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
+  }
+
+  private loanPeriodDays(category: BookCategory) {
+    const fallbackPeriods: Record<BookCategory, number> = {
+      [BookCategory.TEXTBOOK]: 3,
+      [BookCategory.GENERAL]: 7,
+      [BookCategory.NOVEL]: 14,
+    };
+
+    const envKeys: Record<BookCategory, string> = {
+      [BookCategory.TEXTBOOK]: 'LOAN_PERIOD_TEXTBOOK_DAYS',
+      [BookCategory.GENERAL]: 'LOAN_PERIOD_GENERAL_DAYS',
+      [BookCategory.NOVEL]: 'LOAN_PERIOD_NOVEL_DAYS',
+    };
+
+    return Number(
+      this.configService.get(envKeys[category]) ?? fallbackPeriods[category],
+    );
+  }
+
+  private finePerOverdueWeekday() {
+    return Number(this.configService.get('FINE_PER_OVERDUE_WEEKDAY') ?? 20);
+  }
+
+  private maxActiveLoans() {
+    return Number(this.configService.get('MAX_ACTIVE_LOANS') ?? 3);
   }
 }

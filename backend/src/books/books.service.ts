@@ -69,11 +69,16 @@ export class BooksService {
   }
 
   create(createBookDto: CreateBookDto) {
+    const baseSlug = this.buildSlug(createBookDto.title);
+
     return this.prisma.book.create({
       data: {
         ...createBookDto,
-        slug: this.buildSlug(createBookDto.title),
-        summary: createBookDto.summary,
+        slug: baseSlug,
+        isbn: createBookDto.isbn ?? `AUTO-${baseSlug.toUpperCase()}`,
+        shelfCode: createBookDto.shelfCode ?? this.buildShelfCode(createBookDto.category),
+        summary: createBookDto.summary ?? '',
+        publishedYear: createBookDto.publishedYear ?? new Date().getFullYear(),
         totalCopies: createBookDto.totalCopies,
         availableCopies: createBookDto.totalCopies,
         status: BookStatus.AVAILABLE,
@@ -153,6 +158,36 @@ export class BooksService {
     }) as Promise<Book>;
   }
 
+  async remove(id: string) {
+    const book = await this.findOne(id);
+    const activeBorrowedCopies = book.totalCopies - book.availableCopies;
+
+    if (activeBorrowedCopies > 0) {
+      throw new BadRequestException(
+        'Cannot delete a book while copies are still on loan.',
+      );
+    }
+
+    const loanCount = await this.prisma.loan.count({
+      where: { bookId: id },
+    });
+
+    if (loanCount > 0) {
+      throw new BadRequestException(
+        'Cannot delete a book that already has loan history.',
+      );
+    }
+
+    await this.prisma.book.delete({
+      where: { id },
+    });
+
+    return {
+      id,
+      message: 'Book deleted successfully.',
+    };
+  }
+
   private buildSlug(value: string) {
     const slug = value
       .trim()
@@ -161,5 +196,9 @@ export class BooksService {
       .replace(/^-+|-+$/g, '');
 
     return slug || 'book';
+  }
+
+  private buildShelfCode(category: string) {
+    return `${category.slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}`;
   }
 }

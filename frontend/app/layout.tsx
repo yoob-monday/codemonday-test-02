@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AppNav } from "@/components/app-nav";
+import { AuthProvider } from "@/components/auth-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -16,20 +17,22 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <div className="site-background" />
-        <div className="page-shell">
-          <header className="site-header">
-            <Link href="/" className="brand">
-              <span className="brand-mark">LL</span>
-              <span>
-                <strong>Lantern Library</strong>
-                <small>ระบบจัดการงานยืมคืนหนังสือ</small>
-              </span>
-            </Link>
-            <AppNav />
-          </header>
-          <main>{children}</main>
-        </div>
+        <AuthProvider>
+          <div className="site-background" />
+          <div className="page-shell">
+            <header className="site-header">
+              <Link href="/" className="brand">
+                <span className="brand-mark">LL</span>
+                <span>
+                  <strong>Lantern Library</strong>
+                  <small>ระบบจัดการงานยืมคืนหนังสือ</small>
+                </span>
+              </Link>
+              <AppNav />
+            </header>
+            <main>{children}</main>
+          </div>
+        </AuthProvider>
       </body>
     </html>
   );

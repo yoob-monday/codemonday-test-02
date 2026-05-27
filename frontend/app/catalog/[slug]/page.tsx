@@ -1,17 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { BorrowBookPanel } from "@/components/borrow-book-panel";
 import { SectionCard } from "@/components/section-card";
 import {
   formatBookCategory,
   formatBookDisplayTitle,
   formatBookSummary,
   formatBookStatus,
-  formatLoanStatus,
-  getBookBySlug,
-  getLoans
+  getBookBySlug
 } from "@/lib/library-data";
-import { formatDate } from "@/lib/format";
 
 type BookPageProps = {
   params: {
@@ -42,9 +40,6 @@ export default async function BookDetailPage({ params }: BookPageProps) {
   } catch {
     notFound();
   }
-
-  const loans = await getLoans();
-  const currentLoan = loans.find((loan) => loan.bookId === book.id && loan.returnedAt === null);
 
   return (
     <div className="page-stack">
@@ -82,30 +77,7 @@ export default async function BookDetailPage({ params }: BookPageProps) {
           </div>
         </SectionCard>
 
-        <SectionCard title="Current Borrower" eyebrow="Loan Snapshot">
-          {currentLoan ? (
-            <div className="detail-stack">
-              <div className="detail-item">
-                <span>Member</span>
-                <strong>{currentLoan.member.name}</strong>
-              </div>
-              <div className="detail-item">
-                <span>Borrowed On</span>
-                <strong>{formatDate(currentLoan.loanDate)}</strong>
-              </div>
-              <div className="detail-item">
-                <span>Due On</span>
-                <strong>{formatDate(currentLoan.dueDate)}</strong>
-              </div>
-              <div className="detail-item">
-                <span>Status</span>
-                <strong>{formatLoanStatus(currentLoan)}</strong>
-              </div>
-            </div>
-          ) : (
-            <p className="muted-copy">หนังสือเล่มนี้พร้อมให้ยืมและอยู่บนชั้นหนังสือตามตำแหน่งที่ระบุ</p>
-          )}
-        </SectionCard>
+        <BorrowBookPanel book={book} />
       </div>
 
       <Link href="/catalog" className="button button-secondary button-inline">

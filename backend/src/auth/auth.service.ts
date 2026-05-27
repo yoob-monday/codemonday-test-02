@@ -44,26 +44,32 @@ export class AuthService {
     const librarianUsername = this.configService.get<string>(
       'LIBRARIAN_USERNAME',
     );
+    const librarianEmail = this.configService.get<string>('LIBRARIAN_EMAIL');
     const librarianPassword = this.configService.get<string>(
       'LIBRARIAN_PASSWORD',
     );
 
     if (
-      loginDto.identifier === librarianUsername &&
+      [librarianUsername, librarianEmail]
+        .filter(Boolean)
+        .includes(loginDto.identifier) &&
       loginDto.password === librarianPassword
     ) {
       return this.buildAuthResponse({
         sub: 'librarian-env',
+        email: librarianEmail,
         username: librarianUsername,
         role: MemberRole.LIBRARIAN,
         name: 'Librarian',
       });
     }
 
-    const member = await this.membersService.findByEmail(loginDto.identifier);
+    const member = await this.membersService.findByIdentifier(
+      loginDto.identifier,
+    );
 
     if (!member?.passwordHash) {
-      throw new UnauthorizedException('Invalid email or password.');
+      throw new UnauthorizedException('Invalid username, email, or password.');
     }
 
     const passwordMatches = await bcrypt.compare(
@@ -72,7 +78,7 @@ export class AuthService {
     );
 
     if (!passwordMatches) {
-      throw new UnauthorizedException('Invalid email or password.');
+      throw new UnauthorizedException('Invalid username, email, or password.');
     }
 
     return this.buildAuthResponse({

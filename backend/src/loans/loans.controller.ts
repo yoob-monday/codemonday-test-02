@@ -8,6 +8,15 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiParam,
+  ApiProduces,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Response } from 'express';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -18,6 +27,7 @@ import { MemberRole } from '../members/entities/member.entity';
 import { CreateLoanDto } from './dto/create-loan.dto';
 import { LoansService } from './loans.service';
 
+@ApiTags('Loans')
 @Controller('loans')
 export class LoansController {
   constructor(private readonly loansService: LoansService) {}
@@ -25,6 +35,14 @@ export class LoansController {
   @Get('me')
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(MemberRole.MEMBER)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get current member loans' })
+  @ApiQuery({
+    name: 'scope',
+    required: false,
+    example: 'active',
+    description: 'Optional scope: all, active, history, overdue.',
+  })
   findMine(
     @CurrentUser() user: AuthUser,
     @Query('scope') scope?: string,
@@ -35,6 +53,8 @@ export class LoansController {
   @Get('overdue')
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(MemberRole.LIBRARIAN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List overdue loans' })
   findOverdue() {
     return this.loansService.findAll(undefined, 'overdue');
   }
@@ -42,6 +62,9 @@ export class LoansController {
   @Get('overdue/report.pdf')
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(MemberRole.LIBRARIAN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Download overdue loans PDF report' })
+  @ApiProduces('application/pdf')
   async downloadOverdueReport(@Res() response: Response) {
     const reportBuffer = await this.loansService.getOverdueReportBuffer();
 
@@ -55,6 +78,22 @@ export class LoansController {
   }
 
   @Get()
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(MemberRole.LIBRARIAN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List loans with optional filters' })
+  @ApiQuery({
+    name: 'memberId',
+    required: false,
+    example: 'member-uuid-here',
+    description: 'Optional member id filter.',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    example: 'overdue',
+    description: 'Optional status filter: active, overdue, returned.',
+  })
   findAll(
     @Query('memberId') memberId?: string,
     @Query('status') status?: string,
@@ -63,6 +102,11 @@ export class LoansController {
   }
 
   @Get(':id')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(MemberRole.LIBRARIAN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get one loan by id' })
+  @ApiParam({ name: 'id', example: 'loan-uuid-here' })
   findOne(@Param('id') id: string) {
     return this.loansService.findOne(id);
   }
@@ -70,6 +114,19 @@ export class LoansController {
   @Post()
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(MemberRole.MEMBER)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Borrow a book' })
+  @ApiBody({
+    type: CreateLoanDto,
+    examples: {
+      default: {
+        summary: 'Borrow book example',
+        value: {
+          bookId: 'book-uuid-here',
+        },
+      },
+    },
+  })
   create(
     @CurrentUser() user: AuthUser,
     @Body() createLoanDto: CreateLoanDto,
@@ -80,6 +137,9 @@ export class LoansController {
   @Post(':id/return')
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(MemberRole.LIBRARIAN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Mark a loan as returned' })
+  @ApiParam({ name: 'id', example: 'loan-uuid-here' })
   returnBook(@Param('id') id: string) {
     return this.loansService.returnBook(id);
   }

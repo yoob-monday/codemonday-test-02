@@ -82,6 +82,22 @@ async function main() {
         status: 'available',
       },
     }),
+    prisma.book.create({
+      data: {
+        slug: 'exam-mastery-blueprint',
+        title: 'Exam Mastery Blueprint',
+        author: 'Narin Vachira',
+        isbn: '9786169456728',
+        category: 'textbook',
+        shelfCode: 'E7-03',
+        summary:
+          'A structured study companion with timed drills, review checklists, and exam planning templates.',
+        publishedYear: 2022,
+        totalCopies: 4,
+        availableCopies: 4,
+        status: 'available',
+      },
+    }),
   ]);
 
   const members = await Promise.all([

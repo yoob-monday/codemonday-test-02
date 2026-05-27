@@ -78,9 +78,38 @@ export class MembersService {
     }) as Promise<Member | null>;
   }
 
+  findByIdentifier(identifier: string) {
+    return this.prisma.member.findFirst({
+      where: {
+        OR: [
+          {
+            email: {
+              equals: identifier,
+              mode: 'insensitive',
+            },
+          },
+          {
+            name: {
+              equals: identifier,
+              mode: 'insensitive',
+            },
+          },
+          {
+            membershipNumber: {
+              equals: identifier,
+              mode: 'insensitive',
+            },
+          },
+        ],
+      },
+    }) as Promise<Member | null>;
+  }
+
   async create(createMemberDto: CreateMemberDto) {
     const totalMembers = await this.prisma.member.count();
     const passwordHash = await bcrypt.hash(createMemberDto.password, 10);
+    const role = this.resolveRole(createMemberDto.name, createMemberDto.email);
+    const prefix = role === MemberRole.LIBRARIAN ? 'LIB' : 'MBR';
 
     return this.prisma.member.create({
       select: this.memberSelect,
@@ -88,11 +117,11 @@ export class MembersService {
         name: createMemberDto.name,
         email: createMemberDto.email,
         phone: createMemberDto.phone,
-        tier: MemberTier.COMMUNITY,
-        membershipNumber: `MBR-${String(totalMembers + 1).padStart(4, '0')}`,
+        tier: MemberTier.STUDENT,
+        membershipNumber: `${prefix}-${String(totalMembers + 1).padStart(4, '0')}`,
         passwordHash,
         status: MemberStatus.ACTIVE,
-        role: MemberRole.MEMBER,
+        role,
       },
     }) as Promise<Member>;
   }
@@ -112,5 +141,15 @@ export class MembersService {
       ...member,
       activeLoansCount: member.loans.length,
     };
+  }
+
+  private resolveRole(name: string, email: string) {
+    const librarianPattern = /librarian/i;
+
+    if (librarianPattern.test(name) || librarianPattern.test(email)) {
+      return MemberRole.LIBRARIAN;
+    }
+
+    return MemberRole.MEMBER;
   }
 }

@@ -1,13 +1,15 @@
+import { LibrarianLoansPanel } from "@/components/librarian-loans-panel";
 import { SectionCard } from "@/components/section-card";
 import {
   formatBookDisplayTitle,
   formatLoanStatus,
-  getLoans
+  getLoans,
+  getMembers
 } from "@/lib/library-data";
 import { formatDate } from "@/lib/format";
 
 export default async function LoansPage() {
-  const loans = await getLoans();
+  const [loans, members] = await Promise.all([getLoans(), getMembers()]);
 
   return (
     <div className="page-stack">
@@ -43,6 +45,8 @@ export default async function LoansPage() {
           ))}
         </div>
       </SectionCard>
+
+      <LibrarianLoansPanel members={members} />
     </div>
   );
 }

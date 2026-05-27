@@ -1,8 +1,11 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Roles } from './auth/decorators/roles.decorator';
+import { AuthGuard } from './auth/guards/auth.guard';
+import { RolesGuard } from './auth/guards/roles.guard';
 import { BooksService } from './books/books.service';
 import { LoanStatus } from './loans/entities/loan.entity';
 import { LoansService } from './loans/loans.service';
-import { MemberStatus } from './members/entities/member.entity';
+import { MemberRole, MemberStatus } from './members/entities/member.entity';
 import { MembersService } from './members/members.service';
 import { PrismaService } from './prisma/prisma.service';
 
@@ -43,6 +46,8 @@ export class AppController {
   }
 
   @Get('summary')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(MemberRole.LIBRARIAN)
   async getSummary() {
     const books = await this.booksService.findAll();
     const members = await this.membersService.findAll();

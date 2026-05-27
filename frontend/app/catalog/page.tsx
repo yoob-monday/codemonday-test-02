@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LibrarianCatalogPanel } from "@/components/librarian-catalog-panel";
 import { SectionCard } from "@/components/section-card";
 import {
   formatBookCategory,
@@ -46,6 +47,8 @@ export default async function CatalogPage() {
           ))}
         </div>
       </SectionCard>
+
+      <LibrarianCatalogPanel />
     </div>
   );
 }
