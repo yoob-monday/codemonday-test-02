@@ -9,7 +9,7 @@ import {
 } from "@/lib/auth";
 import type { Loan, Member } from "@/lib/library-data";
 import { formatBookDisplayTitle, formatLoanStatus } from "@/lib/library-data";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatThb } from "@/lib/format";
 
 type LibrarianLoansPanelProps = {
   members: Member[];
@@ -71,6 +71,10 @@ export function LibrarianLoansPanel({ members }: LibrarianLoansPanelProps) {
   const filteredOverdueLoans = selectedMemberId
     ? overdueLoans.filter((loan) => loan.member.id === selectedMemberId)
     : overdueLoans;
+  const overdueTotalFine = filteredOverdueLoans.reduce(
+    (sum, loan) => sum + loan.currentFine,
+    0
+  );
 
   function handleReturn(loanId: string) {
     startTransition(async () => {
@@ -169,7 +173,10 @@ export function LibrarianLoansPanel({ members }: LibrarianLoansPanelProps) {
         </div>
 
         <div className="table-list">
-          <h3 className="librarian-subtitle">Overdue loans</h3>
+          <div className="librarian-section-heading">
+            <h3 className="librarian-subtitle">Overdue loans</h3>
+            <p className="muted-copy">Total fine: {formatThb(overdueTotalFine)}</p>
+          </div>
           {isLoaded && filteredOverdueLoans.length === 0 ? (
             <p className="muted-copy">No overdue loans right now.</p>
           ) : (

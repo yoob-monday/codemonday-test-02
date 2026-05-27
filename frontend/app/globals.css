@@ -642,6 +642,13 @@ a {
   font-size: 1.05rem;
 }
 
+.librarian-section-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .detail-item strong,
 .table-row strong,
 .book-card strong {

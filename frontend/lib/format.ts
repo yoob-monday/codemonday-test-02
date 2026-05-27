@@ -7,3 +7,12 @@ export function formatDate(date: string) {
     year: "numeric"
   }).format(localDate);
 }
+
+export function formatThb(amount: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "THB",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }).format(amount);
+}

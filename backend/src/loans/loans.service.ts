@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import Big from "big.js";
 import { existsSync } from "node:fs";
 import PDFDocument from "pdfkit";
 import { BookCategory } from "../books/entities/book.entity";
@@ -294,6 +295,10 @@ export class LoansService {
 
   async getOverdueReportBuffer() {
     const overdueLoans = await this.findAll(undefined, "overdue");
+    const totalFine = overdueLoans.reduce(
+      (sum, loan) => sum + loan.currentFine,
+      0,
+    );
 
     return new Promise<Buffer>((resolve, reject) => {
       const doc = new PDFDocument({ margin: 40, compress: false });
@@ -393,6 +398,11 @@ export class LoansService {
 
           doc.y = y + rowHeight;
         });
+
+        doc.moveDown(0.75);
+        doc.fontSize(11).text(`Total Fine: ${this.formatCurrency(totalFine)}`, {
+          align: "right",
+        });
       }
 
       doc.end();
@@ -434,10 +444,9 @@ export class LoansService {
       return 0;
     }
 
-    return (
-      this.countOverdueWeekdays(dueDate, settledAt) *
-      this.finePerOverdueWeekday()
-    );
+    return new Big(this.countOverdueWeekdays(dueDate, settledAt))
+      .times(this.finePerOverdueWeekday())
+      .toNumber();
   }
 
   private countOverdueWeekdays(dueDate: Date, settledAt: Date) {

@@ -480,6 +480,40 @@ describe('Library lending business rules', () => {
     expect(returned.fineAmount).toBe(260);
   });
 
+  test('fine calculation supports decimal per-weekday rates with big.js', async () => {
+    jest.setSystemTime(new Date('2026-06-02T09:00:00.000Z'));
+
+    const { prisma, tx } = createPrismaMock();
+    const dueFriday = new Date('2026-05-29T09:00:00.000Z');
+    const loan = loanRecordFixture({
+      loanDate: dueFriday,
+      dueDate: dueFriday,
+      returnedAt: null,
+    });
+
+    tx.loan.findUnique.mockResolvedValue(loan);
+    tx.book.findUnique.mockResolvedValue(
+      bookFixture(BookCategory.GENERAL, { id: loan.bookId }),
+    );
+    tx.book.update.mockResolvedValue(undefined);
+    tx.loan.update.mockImplementation(async (input: { data: any }) => ({
+      ...loan,
+      returnedAt: input.data.returnedAt,
+      status: input.data.status,
+      fineAmount: input.data.fineAmount,
+    }));
+
+    const loansService = new LoansService(
+      prisma as never,
+      createConfigService({
+        FINE_PER_OVERDUE_WEEKDAY: '20.5',
+      }) as never,
+    );
+    const returned = await loansService.returnBook(loan.id);
+
+    expect(returned.fineAmount).toBe(41);
+  });
+
   test('report PDF prefers a configured font path when it exists', () => {
     const { prisma } = createPrismaMock();
     const configuredFontPath = `${process.cwd()}/package.json`;
@@ -547,6 +581,7 @@ describe('Library lending business rules', () => {
     expect(renderedText).toContain('Overdue Book');
     expect(renderedText).toContain('Due Date');
     expect(renderedText).toContain('Fine');
+    expect(renderedText).toContain(`Total Fine: ${formatThb(60)}`);
     expect(renderedText).toContain('Sonia Patel\nMBR-0001');
     expect(renderedText).toContain('Marcus Reed\nMBR-0002');
     expect(renderedText).toContain('Designing Human Systems\nM. A. Velasquez');
